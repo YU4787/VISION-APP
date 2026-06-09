@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SmartVision">
+<link rel="manifest" href="manifest.json">
+<title>SmartVision</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;}
+:root{
+  --bg:#0a0c10;
+  --panel:#12151e;
+  --card:#181d2a;
+  --border:#232a3e;
+  --border2:#2d3650;
+  --teal:#00e5b4;
+  --blue:#3b82f6;
+  --amber:#f59e0b;
+  --red:#ef4444;
+  --green:#22c55e;
+  --txt:#e8edf8;
+  --txt2:#8896b3;
+  --txt3:#3d4f72;
+  --mono:'Courier New',monospace;
+  --sl:env(safe-area-inset-left,0px);
+  --sr:env(safe-area-inset-right,0px);
+  --st:env(safe-area-inset-top,0px);
+  --sb:env(safe-area-inset-bottom,0px);
+}
+html,body{
+  height:100%;overflow:hidden;
+  background:var(--bg);color:var(--txt);
+  font-family:-apple-system,sans-serif;
+}
+
+/* ── 루트 레이아웃: 상단바 + 메인 ── */
+#app{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  padding-left:var(--sl);
+  padding-right:var(--sr);
+  padding-top:var(--st);
+  padding-bottom:var(--sb);
+}
+
+/* ── 상단바 ── */
+#topbar{
+  height:36px;flex-shrink:0;
+  display:flex;align-items:center;gap:8px;
+  padding:0 10px;
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+}
+.logo{font-size:11px;font-weight:700;letter-spacing:2px;color:var(--teal);}
+.tb-sep{width:1px;height:16px;background:var(--border);margin:0 2px;}
+.status-pill{
+  display:flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:12px;
+  font-size:10px;font-weight:700;font-family:var(--mono);
+  background:var(--card);border:1px solid var(--border);
+  letter-spacing:.5px;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--txt3);}
+.ok-pill{background:#052f1a;border-color:var(--green);color:var(--green);}
+.ok-pill .dot{background:var(--green);box-shadow:0 0 4px var(--green);}
+.ng-pill{background:#2f0505;border-color:var(--red);color:var(--red);}
+.ng-pill .dot{background:var(--red);box-shadow:0 0 4px var(--red);}
+.live-pill{background:#052f27;border-color:var(--teal);color:var(--teal);}
+.live-pill .dot{background:var(--teal);box-shadow:0 0 4px var(--teal);animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+.tb-spacer{flex:1;}
+.cnt-badge{
+  padding:2px 8px;border-radius:8px;
+  font-size:10px;font-weight:700;font-family:var(--mono);
+}
+.cnt-ok{background:#052f1a;color:var(--green);border:1px solid var(--green);}
+.cnt-ng{background:#2f0505;color:var(--red);border:1px solid var(--red);}
+.tb-icon-btn{
+  width:28px;height:28px;border-radius:7px;
+  background:var(--card);border:1px solid var(--border);
+  color:var(--txt2);font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+}
+.tb-icon-btn.on{border-color:var(--amber);color:var(--amber);}
+
+/* ── 메인: 뷰파인더 + 우측패널 ── */
+#main{
+  flex:1;display:flex;min-height:0;
+}
+
+/* ── 뷰파인더 ── */
+#viewfinder{
+  flex:1;position:relative;overflow:hidden;background:#000;
+}
+#viewfinder video{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;display:none;
+}
+canvas.img-layer{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+}
+canvas.ovl-layer{
+  position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
+}
+canvas.touch-layer{
+  position:absolute;inset:0;width:100%;height:100%;touch-action:none;
+}
+#vf-hint{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:var(--txt3);font-size:13px;text-align:center;pointer-events:none;gap:6px;
+}
+#vf-hint .hi{font-size:32px;opacity:.25;}
+
+/* 판정 오버레이 */
+#judge-overlay{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  padding:12px 36px;border-radius:16px;
+  font-size:28px;font-weight:900;font-family:var(--mono);letter-spacing:2px;
+  opacity:0;transition:opacity .25s;pointer-events:none;z-index:5;
+}
+#judge-overlay.show{opacity:1;}
+#judge-overlay.ok{background:rgba(5,47,26,.93);color:var(--green);border:2px solid var(--green);}
+#judge-overlay.ng{background:rgba(47,5,5,.93);color:var(--red);border:2px solid var(--red);}
+
+/* 모드 배너 */
+#mode-banner{
+  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  padding:4px 12px;border-radius:12px;
+  font-size:10px;color:var(--txt2);font-family:var(--mono);
+  background:rgba(10,12,16,.82);white-space:nowrap;pointer-events:none;
+}
+
+/* Zone 결과 */
+#zone-results{
+  position:absolute;top:8px;left:50%;transform:translateX(-50%);
+  display:flex;gap:5px;pointer-events:none;z-index:3;
+}
+.zr-chip{
+  padding:3px 9px;border-radius:8px;
+  font-size:10px;font-weight:700;font-family:var(--mono);border:1px solid;
+}
+.zr-chip.ok{background:#052f1a;color:var(--green);border-color:var(--green);}
+.zr-chip.ng{background:#2f0505;color:var(--red);border-color:var(--red);}
+
+/* 메트릭 (뷰파인더 좌하단) */
+#metrics-bar{
+  position:absolute;bottom:24px;left:8px;
+  display:flex;gap:8px;pointer-events:none;z-index:3;
+}
+.metric{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.m-lbl{font-size:8px;color:var(--txt3);letter-spacing:.5px;text-transform:uppercase;}
+.m-val{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--txt);}
+
+/* ── 우측 패널 ── */
+#sidebar{
+  width:110px;flex-shrink:0;
+  background:var(--panel);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;
+  padding:6px 7px;gap:5px;
+  overflow-y:auto;
+}
+
+/* 마스터 썸네일 */
+#master-strip{
+  display:flex;flex-wrap:wrap;gap:5px;
+  padding-bottom:5px;
+  border-bottom:1px solid var(--border);
+}
+.m-thumb{
+  width:44px;height:36px;border-radius:6px;overflow:hidden;
+  border:2px solid var(--border2);position:relative;flex-shrink:0;
+}
+.m-thumb.active{border-color:var(--teal);}
+.m-thumb.best{border-color:var(--green);}
+.m-thumb img{width:100%;height:100%;object-fit:cover;}
+.m-thumb .m-del{
+  position:absolute;top:0;right:0;
+  width:14px;height:14px;
+  background:rgba(239,68,68,.9);color:#fff;
+  font-size:9px;border:none;border-radius:0 4px 0 3px;
+  display:flex;align-items:center;justify-content:center;
+}
+.m-add-btn{
+  width:44px;height:36px;border-radius:6px;
+  border:2px dashed var(--border2);
+  background:rgba(10,12,16,.4);
+  color:var(--txt3);font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* 모드 버튼 */
+.mode-btn{
+  width:100%;height:38px;border-radius:9px;
+  border:1.5px solid var(--border);
+  background:var(--card);color:var(--txt2);
+  font-size:11px;font-weight:600;letter-spacing:.5px;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.mode-btn .bi{font-size:13px;}
+.mode-btn.active{
+  border-color:var(--teal);color:var(--teal);
+  background:rgba(0,229,180,.07);
+}
+.mode-btn.active-anchor{border-color:var(--amber);color:var(--amber);background:rgba(245,158,11,.07);}
+.mode-btn.active-zone{border-color:var(--blue);color:var(--blue);background:rgba(59,130,246,.07);}
+
+/* 구분선 */
+.divider{height:1px;background:var(--border);flex-shrink:0;}
+
+/* 검사 버튼 */
+#inspect-btn{
+  width:100%;
+  flex:1;
+  border-radius:12px;border:none;
+  background:linear-gradient(160deg,#00b890,var(--teal));
+  color:#000;font-size:13px;font-weight:800;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  box-shadow:0 3px 16px rgba(0,200,160,.2);
+  min-height:52px;
+}
+#inspect-btn .run-icon{font-size:20px;}
+#inspect-btn:active{transform:scale(.96);}
+#inspect-btn.disabled{
+  background:var(--card);color:var(--txt3);
+  box-shadow:none;border:1.5px solid var(--border);
+}
+
+/* ── 설정/로그/마스터 패널 (슬라이드업) ── */
+.sheet{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--panel);
+  border-radius:18px 18px 0 0;
+  border-top:1px solid var(--border2);
+  transform:translateY(100%);
+  transition:transform .3s cubic-bezier(.32,.72,0,1);
+  z-index:60;
+  max-height:75vh;
+  display:flex;flex-direction:column;
+}
+.sheet.open{transform:translateY(0);}
+.sheet-handle{
+  width:32px;height:4px;border-radius:2px;background:var(--border2);
+  margin:10px auto 14px;flex-shrink:0;
+}
+.sheet-body{overflow-y:auto;padding:0 16px 20px;}
+
+/* 패널 내 요소 */
+.panel-title{
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--txt3);margin-bottom:10px;
+}
+.slider-row{padding:6px 0;}
+.slider-label{display:flex;justify-content:space-between;font-size:12px;color:var(--txt2);margin-bottom:7px;}
+.sv{font-family:var(--mono);color:var(--teal);}
+input[type=range]{
+  width:100%;height:6px;-webkit-appearance:none;
+  background:var(--border);border-radius:3px;outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+  background:var(--teal);border:3px solid var(--bg);
+  box-shadow:0 1px 6px rgba(0,200,160,.35);
+}
+.setting-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 0;border-bottom:1px solid var(--border);
+}
+.setting-row:last-child{border-bottom:none;}
+.s-label{font-size:14px;}
+.s-sub{font-size:11px;color:var(--txt3);margin-top:2px;}
+.toggle{
+  width:44px;height:24px;border-radius:12px;background:var(--border);
+  position:relative;flex-shrink:0;transition:.2s;
+}
+.toggle.on{background:var(--teal);}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;}
+.toggle.on::after{left:23px;}
+
+/* 마스터 패널 옵션 */
+.m-option{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 0;border-bottom:1px solid var(--border);
+}
+.m-option:last-child{border-bottom:none;}
+.mo-icon{
+  width:40px;height:40px;border-radius:10px;background:var(--card);
+  display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;
+}
+.mo-t{font-size:14px;font-weight:600;}
+.mo-s{font-size:11px;color:var(--txt3);margin-top:2px;}
+
+/* 로그 */
+#log-body{
+  flex:1;overflow-y:auto;padding:6px 14px;
+  font-family:var(--mono);font-size:10px;
+}
+.le{padding:3px 0;border-bottom:1px solid rgba(35,42,62,.6);display:flex;gap:6px;}
+.lt{color:var(--txt3);flex-shrink:0;font-size:9px;}
+.lok{color:var(--green);}.lng{color:var(--red);}.lwarn{color:var(--amber);}
+#log-sheet{height:55vh;}
+
+/* 딤 */
+#dim{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);
+  z-index:50;opacity:0;pointer-events:none;transition:.25s;
+}
+#dim.show{opacity:1;pointer-events:auto;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 상단 얇은 바 -->
+  <div id="topbar">
+    <div class="logo">SV</div>
+    <div class="tb-sep"></div>
+    <div class="status-pill" id="status-pill">
+      <div class="dot"></div>
+      <span id="status-txt">대기</span>
+    </div>
+    <div class="tb-spacer"></div>
+    <div class="cnt-badge cnt-ok" id="cnt-ok">OK 0</div>
+    <div class="cnt-badge cnt-ng" id="cnt-ng">NG 0</div>
+    <div class="tb-sep"></div>
+    <button class="tb-icon-btn" id="flash-btn" onclick="toggleFlash()" style="display:none">⚡</button>
+    <button class="tb-icon-btn" onclick="openSettings()">⚙</button>
+    <button class="tb-icon-btn" onclick="openLog()">📋</button>
+  </div>
+
+  <!-- 메인 가로 레이아웃 -->
+  <div id="main">
+
+    <!-- 뷰파인더 -->
+    <div id="viewfinder">
+      <video id="vid" autoplay playsinline muted></video>
+      <canvas id="ic" class="img-layer"></canvas>
+      <canvas id="idiff" class="ovl-layer"></canvas>
+      <canvas id="ie" class="ovl-layer"></canvas>
+      <canvas id="touch-canvas" class="touch-layer"></canvas>
+
+      <div id="vf-hint">
+        <div class="hi">📷</div>
+        <div>마스터 등록 후 검사 시작</div>
+      </div>
+
+      <div id="judge-overlay"></div>
+      <div id="mode-banner">RUN — 탭하여 검사</div>
+      <div id="zone-results"></div>
+
+      <div id="metrics-bar">
+        <div class="metric"><span class="m-lbl">SSIM</span><span class="m-val" id="m-ssim">—</span></div>
+        <div class="metric"><span class="m-lbl">PIX</span><span class="m-val" id="m-pix">—</span></div>
+        <div class="metric"><span class="m-lbl">STD</span><span class="m-val" id="m-std">—</span></div>
+        <div class="metric"><span class="m-lbl">Δ</span><span class="m-val" id="m-align">—</span></div>
+        <div class="metric"><span class="m-lbl">ms</span><span class="m-val" id="m-cycle">—</span></div>
+      </div>
+    </div>
+
+    <!-- 우측 사이드바 -->
+    <div id="sidebar">
+
+      <!-- 마스터 썸네일 -->
+      <div id="master-strip"></div>
+
+      <!-- 모드 버튼 -->
+      <button class="mode-btn active" id="btn-run" onclick="setMode('run')">
+        <span class="bi">▶</span>RUN
+      </button>
+      <button class="mode-btn" id="btn-roi" onclick="setMode('roi')">
+        <span class="bi">⬜</span>ROI
+      </button>
+      <button class="mode-btn" id="btn-anchor" onclick="setMode('anchor')">
+        <span class="bi">⚓</span>앵커
+      </button>
+      <button class="mode-btn" id="btn-zone" onclick="setMode('zone')">
+        <span class="bi">🎯</span>ZONE
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- 토글 버튼들 -->
+      <button class="mode-btn" id="btn-ovl" onclick="toggleOverlay()">
+        <span class="bi">🔍</span>엣지
+      </button>
+      <button class="mode-btn active" id="btn-diff" onclick="toggleDiff()">
+        <span class="bi">🟥</span>NG맵
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- 마스터 추가 -->
+      <button class="mode-btn" onclick="openMasterPanel()">
+        <span class="bi">📷</span>마스터
+      </button>
+
+      <!-- 카메라 -->
+      <button class="mode-btn" id="btn-cam" onclick="toggleCam()">
+        <span class="bi" id="cam-icon">📷</span>카메라
+      </button>
+
+      <!-- 검사 실행 (남은 공간 채움) -->
+      <button id="inspect-btn" class="disabled" onclick="runInspect()">
+        <span class="run-icon">▶</span>
+        <span>검사</span>
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<!-- 딤 -->
+<div id="dim" onclick="closeAll()"></div>
+
+<!-- 설정 시트 -->
+<div class="sheet" id="settings-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-body">
+    <div class="panel-title">판정 기준</div>
+    <div class="slider-row">
+      <div class="slider-label"><span>판정 임계값</span><span class="sv" id="thresh-v">70%</span></div>
+      <input type="range" id="sens-main" min="1" max="99" value="70" oninput="onSens()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>엣지 감도</span><span class="sv" id="esens-v">82%</span></div>
+      <input type="range" id="esens" min="1" max="99" value="82" oninput="onEdge()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span>STD 임계값 <span style="font-size:10px;color:var(--txt3)">(미만=볼트없음)</span></span>
+        <span class="sv" id="std-thresh-v">37</span>
+      </div>
+      <input type="range" id="std-thresh" min="10" max="60" value="37" step="1" oninput="onStdThresh()">
+    </div>
+    <div class="panel-title" style="margin-top:14px;">보정</div>
+    <div class="setting-row" onclick="toggleAlign()">
+      <div><div class="s-label">앵커 XY 보정</div><div class="s-sub">앵커 기준 위치 자동 보정</div></div>
+      <div class="toggle on" id="align-sw"></div>
+    </div>
+    <div class="setting-row" onclick="resetCounters()">
+      <div class="s-label">카운터 리셋</div>
+      <span style="color:var(--txt3)">↺</span>
+    </div>
+  </div>
+</div>
+
+<!-- 로그 시트 -->
+<div class="sheet" id="log-sheet" style="height:55vh;display:flex;flex-direction:column;">
+  <div class="sheet-handle" onclick="closeAll()"></div>
+  <div style="display:flex;justify-content:space-between;padding:0 14px 8px;flex-shrink:0;">
+    <span style="font-size:12px;color:var(--txt2);">로그</span>
+    <button onclick="clearLogs()" style="font-size:11px;color:var(--red);background:none;border:none;">클리어</button>
+  </div>
+  <div id="log-body"></div>
+</div>
+
+<!-- 마스터 시트 -->
+<div class="sheet" id="master-sheet">
+  <div class="sheet-handle" onclick="closeAll()"></div>
+  <div class="sheet-body">
+    <div class="m-option" onclick="document.getElementById('file-in').click();closeAll();">
+      <div class="mo-icon">📁</div>
+      <div><div class="mo-t">파일에서 추가</div><div class="mo-s">사진첩 선택 (복수 가능)</div></div>
+    </div>
+    <div class="m-option" onclick="captureMasterFromCam();closeAll();">
+      <div class="mo-icon">📸</div>
+      <div><div class="mo-t">현재 프레임 캡처</div><div class="mo-s">카메라 화면을 마스터로</div></div>
+    </div>
+    <div class="m-option" onclick="promoteToMaster();closeAll();">
+      <div class="mo-icon">⬆</div>
+      <div><div class="mo-t">검사 이미지 → 마스터</div><div class="mo-s">현재 검사 이미지 등록</div></div>
+    </div>
+    <input type="file" id="file-in" accept="image/*" multiple style="display:none" onchange="onFileIn(event)">
+  </div>
+</div>
+
+<script>
+
+/* =====================================================
+   SmartVision Inspector — iPhone PWA
+   v7 알고리즘 이식 + 모바일 전용 UI
+===================================================== */
+const W=640, H=480, FAST_STEP=2;
+const SCORE_W={ssim:0.50, edge:0.0, local:0.50, density:0.0};
+
+/* 상태 */
+let masters=[], activeMasterIdx=0, bestMasterIdx=-1;
+let inspectID=null, currentFile=null;
+let masterPP=null, inspectPP=null;
+let masterEdge=null, inspectEdge=null;
+let stream=null, torchOn=false;
+let liveMode=false;
+let okCount=0, ngCount=0;
+let alignEnabled=true;
+let showOvl=false, showDiff=true, showMetrics=true;
+let lastCycleMs=0;
+let editMode='run'; // 'run'|'roi'|'anchor'|'zone'
+
+/* ROI / 앵커 / Zone */
+let roi={x:80,y:60,w:480,h:360};
+const ROI_MIN=24;
+let anchor={x:200,y:150,w:80,h:80,set:false};
+let zones=[];
+const ZONE_COLORS=['#00e5b4','#3b82f6','#f59e0b','#ef4444','#a78bfa','#22c55e'];
+
+/* 터치 드래그 상태 */
+let drag={active:false,type:null,startX:0,startY:0,objX:0,objY:0};
+
+/* ─ 캔버스 설정 ─ */
+function setupCanvas(id){
+  const c=document.getElementById(id);
+  c.width=W; c.height=H; return c;
+}
+const ic=setupCanvas('ic');
+const idiff=setupCanvas('idiff');
+const ie=setupCanvas('ie');
+const tc=setupCanvas('touch-canvas');
+const iCtx=ic.getContext('2d',{willReadFrequently:true});
+const idiffCtx=idiff.getContext('2d');
+const ieCtx=ie.getContext('2d');
+const tcCtx=tc.getContext('2d');
+const off=document.createElement('canvas'); off.width=W; off.height=H;
+const offCtx=off.getContext('2d',{willReadFrequently:true});
+
+/* ─ 유틸 ─ */
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function ts(){const n=new Date();return[n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');}
+function tsName(){const d=new Date(),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;}
+
+function log(msg,cls=''){
+  const box=document.getElementById('log-body');
+  const d=document.createElement('div'); d.className='le';
+  const c=cls==='ok'?'lok':cls==='ng'?'lng':cls==='warn'?'lwarn':'';
+  d.innerHTML=`<span class="lt">${ts()}</span><span class="${c}">${msg}</span>`;
+  box.insertBefore(d,box.firstChild);
+  while(box.children.length>100)box.removeChild(box.lastChild);
+}
+function clearLogs(){document.getElementById('log-body').innerHTML='';log('로그 클리어');}
+function resetCounters(){okCount=0;ngCount=0;document.getElementById('cnt-ok').textContent='OK 0';document.getElementById('cnt-ng').textContent='NG 0';}
+
+/* ─ 패널 ─ */
+function openSettings(){document.getElementById('settings-sheet').classList.add('open');document.getElementById('dim').classList.add('show');}
+function openLog(){document.getElementById('log-sheet').classList.add('open');document.getElementById('dim').classList.add('show');}
+function openMasterPanel(){document.getElementById('master-sheet').classList.add('open');document.getElementById('dim').classList.add('show');}
+function closeAll(){
+  ['settings-sheet','log-sheet','master-sheet'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  document.getElementById('dim').classList.remove('show');
+}
+
+/* ─ 모드 전환 ─ */
+function setMode(m){
+  editMode=m;
+  document.querySelectorAll('.mode-btn').forEach(t=>t.classList.remove('active'));
+  const tab=document.getElementById('btn-'+m);
+  if(tab)tab.classList.add('active');
+  const banners={
+    run:'MODE: RUN — 탭하여 검사',
+    roi:'MODE: ROI — 드래그로 영역 설정',
+    anchor:'MODE: ANCHOR — Shift+드래그로 앵커 설정',
+    zone:'MODE: ZONE — 드래그로 검사 포인트 추가 · 길게 탭으로 삭제',
+  };
+  document.getElementById('mode-banner').textContent=banners[m]||'';
+  drawOverlay();
+}
+
+/* ─ 카메라 ─ */
+async function toggleCam(){
+  if(stream){stopCam();}else{await startCam();}
+}
+async function startCam(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+    const vid=document.getElementById('vid');
+    vid.srcObject=stream; vid.style.display='block';
+    document.getElementById('vf-hint').style.display='none';
+    document.getElementById('btn-cam').classList.add('active');
+    document.getElementById('cam-icon').textContent='⏹';
+    // 플래시 지원 확인
+    const track=stream.getVideoTracks()[0];
+    const caps=track.getCapabilities?.();
+    if(caps?.torch){document.getElementById('flash-btn').style.display='flex';}
+    liveMode=true;
+    updateStatus('LIVE','live-pill');
+    log('카메라 연결됨');
+    updateInspectBtn();
+  }catch(e){log('카메라 오류: '+e.message,'ng');}
+}
+function stopCam(){
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  const vid=document.getElementById('vid'); vid.srcObject=null; vid.style.display='none';
+  document.getElementById('btn-cam').classList.remove('active');
+  document.getElementById('cam-icon').textContent='📷';
+  document.getElementById('flash-btn').style.display='none';
+  torchOn=false;
+  liveMode=false;
+  updateStatus('대기','');
+  log('카메라 정지');
+  updateInspectBtn();
+}
+async function toggleFlash(){
+  if(!stream)return;
+  const track=stream.getVideoTracks()[0];
+  torchOn=!torchOn;
+  try{
+    await track.applyConstraints({advanced:[{torch:torchOn}]});
+    const btn=document.getElementById('flash-btn');
+    btn.classList.toggle('on',torchOn);
+    btn.textContent=torchOn?'🔦':'⚡';
+  }catch(e){log('플래시 오류: '+e.message,'warn');}
+}
+
+/* ─ 상태 표시 ─ */
+function updateStatus(txt,cls){
+  const pill=document.getElementById('status-pill');
+  const span=document.getElementById('status-txt');
+  pill.className='status-pill'+(cls?' '+cls:'');
+  span.textContent=txt;
+}
+function updateInspectBtn(){
+  const btn=document.getElementById('inspect-btn');
+  const ready=masters.length>0&&(liveMode||!!inspectID);
+  btn.classList.toggle('disabled',!ready);
+}
+
+/* ─ ROI 좌표 ─ */
+function normROI(){
+  if(roi.w<0){roi.x+=roi.w;roi.w=Math.abs(roi.w);}
+  if(roi.h<0){roi.y+=roi.h;roi.h=Math.abs(roi.h);}
+  roi.w=clamp(roi.w,ROI_MIN,W); roi.h=clamp(roi.h,ROI_MIN,H);
+  roi.x=clamp(roi.x,0,W-roi.w); roi.y=clamp(roi.y,0,H-roi.h);
+  roi.x=Math.round(roi.x);roi.y=Math.round(roi.y);roi.w=Math.round(roi.w);roi.h=Math.round(roi.h);
+}
+function getBounds(pad=0){
+  normROI();
+  return{x0:Math.max(pad,roi.x),y0:Math.max(pad,roi.y),x1:Math.min(W-pad,roi.x+roi.w),y1:Math.min(H-pad,roi.y+roi.h)};
+}
+/* 터치 좌표 → 캔버스 좌표 */
+function touchToCanvas(e){
+  const r=tc.getBoundingClientRect();
+  const touch=e.touches?e.touches[0]:e;
+  return{
+    x:(touch.clientX-r.left)*W/r.width,
+    y:(touch.clientY-r.top)*H/r.height
+  };
+}
+
+/* ─ 오버레이 그리기 ─ */
+function drawOverlay(){
+  tcCtx.clearRect(0,0,W,H);
+  drawROIOnCtx(tcCtx);
+  if(anchor.set)drawAnchorOnCtx(tcCtx);
+  drawZonesOnCtx(tcCtx);
+}
+function drawROIOnCtx(ctx){
+  normROI();
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,0.4)';
+  ctx.fillRect(0,0,W,roi.y);
+  ctx.fillRect(0,roi.y,roi.x,roi.h);
+  ctx.fillRect(roi.x+roi.w,roi.y,W-(roi.x+roi.w),roi.h);
+  ctx.fillRect(0,roi.y+roi.h,W,H-(roi.y+roi.h));
+  // ROI 테두리
+  const active=editMode==='roi';
+  ctx.strokeStyle=active?'#00e5b4':'rgba(0,229,180,0.5)';
+  ctx.lineWidth=active?2:1.5;
+  ctx.strokeRect(roi.x,roi.y,roi.w,roi.h);
+  // 코너 핸들 (active 시만)
+  if(active){
+    ctx.fillStyle='#00e5b4';
+    const corners=[[roi.x,roi.y],[roi.x+roi.w,roi.y],[roi.x,roi.y+roi.h],[roi.x+roi.w,roi.y+roi.h]];
+    corners.forEach(([cx,cy])=>{ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);ctx.fill();});
+  }
+  ctx.restore();
+}
+function drawAnchorOnCtx(ctx){
+  ctx.save();
+  const active=editMode==='anchor';
+  ctx.strokeStyle=active?'#f59e0b':'rgba(245,158,11,0.7)';
+  ctx.lineWidth=active?2:1.5;
+  ctx.setLineDash([5,4]);
+  ctx.strokeRect(anchor.x,anchor.y,anchor.w,anchor.h);
+  ctx.setLineDash([]);
+  ctx.fillStyle=ctx.strokeStyle;
+  ctx.font='bold 10px monospace';
+  ctx.fillText('⚓',anchor.x+3,anchor.y-4);
+  if(active){
+    ctx.beginPath();ctx.arc(anchor.x+anchor.w,anchor.y+anchor.h,8,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+function drawZonesOnCtx(ctx){
+  const active=editMode==='zone';
+  zones.forEach((z,i)=>{
+    const col=ZONE_COLORS[i%ZONE_COLORS.length];
+    ctx.save();
+    ctx.strokeStyle=col; ctx.lineWidth=active?2:1.5;
+    ctx.strokeRect(z.x,z.y,z.w,z.h);
+    ctx.fillStyle=col;ctx.font='bold 10px monospace';
+    ctx.fillText(z.label||('Z'+(i+1)),z.x+3,z.y-3);
+    if(active){ctx.beginPath();ctx.arc(z.x+z.w,z.y+z.h,8,0,Math.PI*2);ctx.fill();}
+    if(z.lastScore!==undefined){
+      const pass=parseInt(document.getElementById('sens-main').value||70);
+      const ok=z.lastScore>=pass;
+      ctx.fillStyle=ok?'rgba(5,47,26,.9)':'rgba(47,5,5,.9)';
+      ctx.fillRect(z.x,z.y+z.h+2,z.w,14);
+      ctx.fillStyle=ok?'#22c55e':'#ef4444';ctx.font='bold 8px monospace';
+      ctx.fillText(`${z.lastScore}% ${ok?'OK':'NG'}`,z.x+3,z.y+z.h+12);
+    }
+    ctx.restore();
+  });
+}
+
+/* ─ 터치 이벤트 ─ */
+tc.addEventListener('touchstart',onTouchStart,{passive:false});
+tc.addEventListener('touchmove',onTouchMove,{passive:false});
+tc.addEventListener('touchend',onTouchEnd,{passive:false});
+
+function onTouchStart(e){
+  e.preventDefault();
+  const p=touchToCanvas(e);
+  drag.startX=p.x; drag.startY=p.y;
+
+  if(editMode==='run'){
+    // RUN 모드: 탭 시 검사 실행
+    return;
+  }
+  if(editMode==='roi'){
+    // 코너 핸들 터치 → 리사이즈
+    const corners=[
+      {name:'tl',x:roi.x,y:roi.y},{name:'tr',x:roi.x+roi.w,y:roi.y},
+      {name:'bl',x:roi.x,y:roi.y+roi.h},{name:'br',x:roi.x+roi.w,y:roi.y+roi.h}
+    ];
+    for(const c of corners){
+      if(Math.hypot(p.x-c.x,p.y-c.y)<20){
+        drag.active=true;drag.type='roi-resize-'+c.name;return;
+      }
+    }
+    // ROI 내부 → 이동
+    if(p.x>=roi.x&&p.x<=roi.x+roi.w&&p.y>=roi.y&&p.y<=roi.y+roi.h){
+      drag.active=true;drag.type='roi-move';drag.objX=p.x-roi.x;drag.objY=p.y-roi.y;
+    } else {
+      // 바깥 → 새 ROI 시작
+      drag.active=true;drag.type='roi-new';
+      roi.x=p.x;roi.y=p.y;roi.w=1;roi.h=1;
+    }
+    return;
+  }
+  if(editMode==='anchor'){
+    if(anchor.set){
+      // 핸들
+      if(Math.hypot(p.x-(anchor.x+anchor.w),p.y-(anchor.y+anchor.h))<20){
+        drag.active=true;drag.type='anchor-resize';return;
+      }
+      // 내부 이동
+      if(p.x>=anchor.x&&p.x<=anchor.x+anchor.w&&p.y>=anchor.y&&p.y<=anchor.y+anchor.h){
+        drag.active=true;drag.type='anchor-move';drag.objX=p.x-anchor.x;drag.objY=p.y-anchor.y;return;
+      }
+    }
+    // 새 앵커
+    drag.active=true;drag.type='anchor-new';
+    anchor.x=p.x;anchor.y=p.y;anchor.w=1;anchor.h=1;anchor.set=true;
+    return;
+  }
+  if(editMode==='zone'){
+    // 기존 zone 핸들
+    for(let i=zones.length-1;i>=0;i--){
+      const z=zones[i];
+      if(Math.hypot(p.x-(z.x+z.w),p.y-(z.y+z.h))<20){
+        drag.active=true;drag.type='zone-resize';drag.zoneIdx=i;return;
+      }
+      if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+        drag.active=true;drag.type='zone-move';drag.zoneIdx=i;drag.objX=p.x-z.x;drag.objY=p.y-z.y;return;
+      }
+    }
+    // 새 Zone
+    drag.active=true;drag.type='zone-new';
+    zones.push({x:p.x,y:p.y,w:1,h:1,label:'Z'+(zones.length+1)});
+    drag.zoneIdx=zones.length-1;
+  }
+}
+function onTouchMove(e){
+  e.preventDefault();
+  if(!drag.active)return;
+  const p=touchToCanvas(e);
+
+  if(drag.type==='roi-move'){
+    roi.x=clamp(p.x-drag.objX,0,W-roi.w);roi.y=clamp(p.y-drag.objY,0,H-roi.h);
+  } else if(drag.type==='roi-new'||drag.type==='roi-resize-br'){
+    roi.w=p.x-roi.x;roi.h=p.y-roi.y;
+  } else if(drag.type==='roi-resize-tl'){
+    const dx=p.x-roi.x,dy=p.y-roi.y;
+    roi.x=p.x;roi.y=p.y;roi.w-=dx;roi.h-=dy;
+  } else if(drag.type==='roi-resize-tr'){
+    const dy=p.y-roi.y;roi.y=p.y;roi.h-=dy;roi.w=p.x-roi.x;
+  } else if(drag.type==='roi-resize-bl'){
+    const dx=p.x-roi.x;roi.x=p.x;roi.w-=dx;roi.h=p.y-roi.y;
+  } else if(drag.type==='anchor-new'||drag.type==='anchor-resize'){
+    anchor.w=clamp(p.x-anchor.x,20,W-anchor.x);anchor.h=clamp(p.y-anchor.y,20,H-anchor.y);
+  } else if(drag.type==='anchor-move'){
+    anchor.x=clamp(p.x-drag.objX,0,W-anchor.w);anchor.y=clamp(p.y-drag.objY,0,H-anchor.h);
+  } else if(drag.type==='zone-new'||drag.type==='zone-resize'){
+    const z=zones[drag.zoneIdx];
+    z.w=clamp(p.x-z.x,20,W-z.x);z.h=clamp(p.y-z.y,20,H-z.y);
+  } else if(drag.type==='zone-move'){
+    const z=zones[drag.zoneIdx];
+    z.x=clamp(p.x-drag.objX,0,W-z.w);z.y=clamp(p.y-drag.objY,0,H-z.h);
+  }
+  normROI();drawOverlay();
+}
+function onTouchEnd(e){
+  e.preventDefault();
+  if(!drag.active){
+    // RUN 모드 탭 → 검사
+    if(editMode==='run')runInspect();
+    drag.active=false;return;
+  }
+  // 작은 드래그는 탭으로 처리
+  const p=touchToCanvas(e.changedTouches?e.changedTouches[0]:e);
+  const dist=Math.hypot(p.x-drag.startX,p.y-drag.startY);
+
+  if(drag.type?.startsWith('zone')&&drag.type==='zone-new'&&dist<10){
+    // 탭으로 Zone 추가 취소
+    zones.pop();
+  } else if(drag.type?.startsWith('zone-resize')){
+    const z=zones[drag.zoneIdx];
+    if(z.w<20||z.h<20){zones.splice(drag.zoneIdx,1);zones.forEach((zz,j)=>zz.label='Z'+(j+1));}
+    else log(`Zone ${z.label}: ${z.x},${z.y} ${z.w}×${z.h}`);
+  } else if(drag.type==='anchor-new'||drag.type==='anchor-resize'){
+    if(anchor.w<20||anchor.h<20){anchor.set=false;log('앵커 너무 작음','ng');}
+    else log(`앵커: ${anchor.x},${anchor.y} ${anchor.w}×${anchor.h}`);
+  }
+
+  // 길게 탭 Zone 삭제는 contextmenu로 처리 안 되므로 더블탭으로
+  drag.active=false; drag.type=null;
+  if(activeMasterIdx<masters.length)saveCurrentToMaster(activeMasterIdx);
+  drawOverlay();
+  refreshOverlays();
+}
+// Zone 더블탭 삭제
+let lastTap=0;
+tc.addEventListener('touchend',e=>{
+  if(editMode!=='zone')return;
+  const now=Date.now();
+  if(now-lastTap<300){
+    const p=touchToCanvas(e.changedTouches[0]);
+    for(let i=zones.length-1;i>=0;i--){
+      const z=zones[i];
+      if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+        log(`Zone ${zones[i].label} 삭제`);
+        zones.splice(i,1);zones.forEach((zz,j)=>zz.label='Z'+(j+1));
+        drawOverlay();return;
+      }
+    }
+  }
+  lastTap=now;
+});
+
+/* ─ 전처리 ─ */
+function expandedBounds(pad=8){
+  const b=getBounds(0);
+  return{x0:Math.max(0,b.x0-pad),y0:Math.max(0,b.y0-pad),x1:Math.min(W,b.x1+pad),y1:Math.min(H,b.y1+pad)};
+}
+function gaussianBlur5x5(data){
+  const out=new Uint8ClampedArray(data),b=expandedBounds(2);
+  for(let y=b.y0+1;y<b.y1-1;y++)for(let x=b.x0+1;x<b.x1-1;x++){
+    for(let c=0;c<3;c++){
+      let s=data[((y-1)*W+(x-1))*4+c]+data[((y-1)*W+x)*4+c]*2+data[((y-1)*W+(x+1))*4+c]
+             +data[(y*W+(x-1))*4+c]*2+data[(y*W+x)*4+c]*4+data[(y*W+(x+1))*4+c]*2
+             +data[((y+1)*W+(x-1))*4+c]+data[((y+1)*W+x)*4+c]*2+data[((y+1)*W+(x+1))*4+c];
+      out[(y*W+x)*4+c]=Math.round(s/16);
+    }out[(y*W+x)*4+3]=255;
+  }return out;
+}
+function normalizeBrightness(data,target=128){
+  const out=new Uint8ClampedArray(data.length),b=getBounds(0);
+  let s=0,n=0;
+  for(let y=b.y0;y<b.y1;y+=FAST_STEP)for(let x=b.x0;x<b.x1;x+=FAST_STEP){
+    const p=(y*W+x)*4;s+=.299*data[p]+.587*data[p+1]+.114*data[p+2];n++;
+  }
+  const sc=target/Math.max(1,s/Math.max(1,n));
+  for(let i=0;i<data.length;i+=4){out[i]=Math.min(255,Math.round(data[i]*sc));out[i+1]=Math.min(255,Math.round(data[i+1]*sc));out[i+2]=Math.min(255,Math.round(data[i+2]*sc));out[i+3]=255;}
+  return out;
+}
+function buildGrayArray(data){
+  const gray=new Uint8Array(W*H),b=expandedBounds(8);
+  for(let y=b.y0;y<b.y1;y+=FAST_STEP)for(let x=b.x0;x<b.x1;x+=FAST_STEP){
+    const i=y*W+x,p=i*4;gray[i]=Math.max(0,Math.min(255,Math.round(.299*data[p]+.587*data[p+1]+.114*data[p+2])));
+  }return gray;
+}
+function claheLuma(data,tilesX=6,tilesY=4,clipLimit=2.2){
+  const work=expandedBounds(10),gray=buildGrayArray(data),maps=[];
+  const rw=Math.max(1,work.x1-work.x0),rh=Math.max(1,work.y1-work.y0);
+  const tileW=Math.ceil(rw/tilesX),tileH=Math.ceil(rh/tilesY);
+  for(let ty=0;ty<tilesY;ty++)for(let tx=0;tx<tilesX;tx++){
+    const x0=work.x0+tx*tileW,y0=work.y0+ty*tileH,x1=Math.min(work.x1,x0+tileW),y1=Math.min(work.y1,y0+tileH);
+    const hist=new Uint32Array(256);let count=0;
+    for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){hist[gray[y*W+x]]++;count++;}
+    const clip=Math.max(3,Math.floor((count/256)*clipLimit));let excess=0;
+    for(let i=0;i<256;i++){if(hist[i]>clip){excess+=hist[i]-clip;hist[i]=clip;}}
+    const redist=Math.floor(excess/256),rem=excess%256;
+    for(let i=0;i<256;i++)hist[i]+=redist;for(let i=0;i<rem;i++)hist[(i*37)%256]++;
+    const map=new Uint8Array(256);let cdf=0;
+    for(let i=0;i<256;i++){cdf+=hist[i];map[i]=Math.max(0,Math.min(255,Math.round(cdf*255/Math.max(1,count))));}
+    maps[ty*tilesX+tx]=map;
+  }
+  const out=new Uint8ClampedArray(data);
+  for(let y=work.y0;y<work.y1;y++){
+    const gy=(y-work.y0+0.5)/tileH-0.5,ty0=clamp(Math.floor(gy),0,tilesY-1),ty1=clamp(ty0+1,0,tilesY-1),fy=clamp(gy-ty0,0,1);
+    for(let x=work.x0;x<work.x1;x++){
+      const gx=(x-work.x0+0.5)/tileW-0.5,tx0=clamp(Math.floor(gx),0,tilesX-1),tx1=clamp(tx0+1,0,tilesX-1),fx=clamp(gx-tx0,0,1);
+      const g=gray[y*W+x],m00=maps[ty0*tilesX+tx0][g],m10=maps[ty0*tilesX+tx1][g],m01=maps[ty1*tilesX+tx0][g],m11=maps[ty1*tilesX+tx1][g];
+      const eq=(m00*(1-fx)+m10*fx)*(1-fy)+(m01*(1-fx)+m11*fx)*fy;
+      const p=(y*W+x)*4,ratio=eq/Math.max(8,g);
+      out[p]=Math.max(0,Math.min(255,Math.round(data[p]*ratio)));out[p+1]=Math.max(0,Math.min(255,Math.round(data[p+1]*ratio)));out[p+2]=Math.max(0,Math.min(255,Math.round(data[p+2]*ratio)));out[p+3]=255;
+    }
+  }return out;
+}
+function preprocess(data){let r=new Uint8ClampedArray(data);r=gaussianBlur5x5(r);r=normalizeBrightness(r);r=claheLuma(r,6,4,2.2);return r;}
+function brightnessMatch(srcData,refData){
+  const b=getBounds(0);let sumS=0,sumR=0,n=0;
+  for(let y=b.y0;y<b.y1;y+=FAST_STEP)for(let x=b.x0;x<b.x1;x+=FAST_STEP){
+    const p=(y*W+x)*4;
+    sumS+=.299*srcData[p]+.587*srcData[p+1]+.114*srcData[p+2];
+    sumR+=.299*refData[p]+.587*refData[p+1]+.114*refData[p+2];n++;
+  }
+  if(!n)return new Uint8ClampedArray(srcData);
+  const diff=Math.round((sumR-sumS)/n);
+  if(Math.abs(diff)<2)return new Uint8ClampedArray(srcData);
+  const out=new Uint8ClampedArray(srcData),b2=getBounds(0);
+  for(let y=b2.y0;y<b2.y1;y++)for(let x=b2.x0;x<b2.x1;x++){
+    const p=(y*W+x)*4;
+    out[p]=Math.min(255,Math.max(0,srcData[p]+diff));out[p+1]=Math.min(255,Math.max(0,srcData[p+1]+diff));out[p+2]=Math.min(255,Math.max(0,srcData[p+2]+diff));
+  }return out;
+}
+
+/* ─ Canny 엣지 ─ */
+function grayAt(data,i){const p=i*4;return .299*data[p]+.587*data[p+1]+.114*data[p+2];}
+function contrastStretchGray(data){
+  const b=getBounds(2),vals=[];
+  for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++)vals.push(grayAt(data,y*W+x));
+  vals.sort((a,b)=>a-b);
+  const lo=vals[Math.floor(vals.length*0.02)]||0,hi=vals[Math.floor(vals.length*0.98)]||255;
+  const scale=255/Math.max(12,hi-lo),gray=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++)gray[i]=Math.max(0,Math.min(255,(grayAt(data,i)-lo)*scale));return gray;
+}
+function getEdgeSens(){return parseInt(document.getElementById('esens')?.value||82);}
+function roiCacheKey(){normROI();return`${roi.x},${roi.y},${roi.w},${roi.h}`;}
+function edgeCacheKey(){return`${roiCacheKey()}|E${getEdgeSens()}`;}
+function getMasterPreprocess(m){
+  const key=roiCacheKey();
+  if(!m.ppData||m.ppKey!==key){m.ppData=preprocess(m.imageData.data);m.ppKey=key;m.edgeData=null;m.edgeKey=null;}
+  return m.ppData;
+}
+function getMasterEdge(m,ppData){
+  const key=edgeCacheKey();
+  if(!m.edgeData||m.edgeKey!==key){m.edgeData=cannyEdge(ppData);m.edgeKey=key;}
+  return m.edgeData;
+}
+function cannyEdge(data){
+  const gray=contrastStretchGray(data),sens=getEdgeSens();
+  const mag=new Float32Array(W*H),dir=new Uint8Array(W*H),gradVals=[];
+  const b=getBounds(2),kx=[-1,0,1,-2,0,2,-1,0,1],ky=[-1,-2,-1,0,0,0,1,2,1];
+  for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++){
+    let gx=0,gy=0;for(let r=0;r<3;r++)for(let c=0;c<3;c++){const g=gray[(y+r-1)*W+(x+c-1)];gx+=kx[r*3+c]*g;gy+=ky[r*3+c]*g;}
+    const i=y*W+x,m=Math.sqrt(gx*gx+gy*gy);mag[i]=m;gradVals.push(m);
+    let deg=Math.atan2(gy,gx)*180/Math.PI;if(deg<0)deg+=180;
+    dir[i]=(deg<22.5||deg>=157.5)?0:(deg<67.5)?1:(deg<112.5)?2:3;
+  }
+  const nms=new Float32Array(W*H);
+  for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++){
+    const i=y*W+x,a=dir[i];let m1=0,m2=0;
+    if(a===0){m1=mag[i-1];m2=mag[i+1];}else if(a===1){m1=mag[i-W+1];m2=mag[i+W-1];}
+    else if(a===2){m1=mag[i-W];m2=mag[i+W];}else{m1=mag[i-W-1];m2=mag[i+W+1];}
+    if(mag[i]>=m1&&mag[i]>=m2)nms[i]=mag[i];
+  }
+  gradVals.sort((a,b)=>a-b);
+  const pct=p=>gradVals[Math.min(gradVals.length-1,Math.max(0,Math.floor(gradVals.length*p)))]||0;
+  const en=(sens/100)*.50,hP=0.97-en*.28,lP=Math.min(0.94,hP*.68);
+  const highTh=Math.max(16,pct(hP)),lowTh=Math.max(10,pct(lP));
+  const strong=new Uint8Array(W*H),weak=new Uint8Array(W*H),out=new Uint8Array(W*H),stack=[];
+  for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++){
+    const i=y*W+x,m=nms[i];
+    if(m>=highTh){strong[i]=255;out[i]=255;stack.push(i);}else if(m>=lowTh){weak[i]=255;}
+  }
+  while(stack.length){
+    const i=stack.pop(),x=i%W,y=(i/W)|0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;
+      if(nx<1||ny<1||nx>=W-1||ny>=H-1)continue;const ni=ny*W+nx;
+      if(weak[ni]&&!out[ni]){out[ni]=255;stack.push(ni);}
+    }
+  }
+  const clean=new Uint8Array(W*H);
+  for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++){
+    const i=y*W+x;if(!out[i])continue;let n=0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;if(out[(y+dy)*W+(x+dx)])n++;}
+    if(n>=1)clean[i]=255;
+  }return clean;
+}
+function drawEdge(ctx,edges){
+  ctx.clearRect(0,0,W,H);const img=ctx.createImageData(W,H),b=getBounds(0);
+  for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++){
+    const i=y*W+x;if(edges[i]){
+      [[x,y],[x+1,y],[x,y+1]].forEach(([px,py])=>{
+        if(px>=0&&py>=0&&px<W&&py<H){const idx=(py*W+px)*4;img.data[idx]=0;img.data[idx+1]=229;img.data[idx+2]=180;img.data[idx+3]=180;}
+      });
+    }
+  }ctx.putImageData(img,0,0);
+}
+
+/* ─ SSIM ─ */
+function calcSSIM(d1,d2){
+  const b=getBounds(0),BS=16,C1=6.5025,C2=58.5225;let ssimSum=0,blockCount=0;
+  for(let by=b.y0;by<b.y1-BS;by+=BS)for(let bx=b.x0;bx<b.x1-BS;bx+=BS){
+    let sum1=0,sum2=0,sum1sq=0,sum2sq=0,sum12=0,n=0;
+    for(let y=by;y<by+BS&&y<b.y1;y++)for(let x=bx;x<bx+BS&&x<b.x1;x++){
+      const p=(y*W+x)*4,v1=d1[p]*.299+d1[p+1]*.587+d1[p+2]*.114,v2=d2[p]*.299+d2[p+1]*.587+d2[p+2]*.114;
+      sum1+=v1;sum2+=v2;sum1sq+=v1*v1;sum2sq+=v2*v2;sum12+=v1*v2;n++;
+    }
+    if(n<4)continue;const mu1=sum1/n,mu2=sum2/n;
+    const sig1sq=sum1sq/n-mu1*mu1,sig2sq=sum2sq/n-mu2*mu2,sig12=sum12/n-mu1*mu2;
+    ssimSum+=Math.max(0,((2*mu1*mu2+C1)*(2*sig12+C2))/((mu1*mu1+mu2*mu2+C1)*(sig1sq+sig2sq+C2)));blockCount++;
+  }
+  const avg=blockCount?ssimSum/blockCount:0;
+  return{score:Math.max(0,Math.min(100,Math.round(avg>=0.95?94+(avg-0.95)*120:avg>=0.85?82+(avg-0.85)*120:avg>=0.75?62+(avg-0.75)*200:avg>=0.60?25+(avg-0.60)*247:avg*41.7))),raw:avg};
+}
+
+/* ─ 로컬 대비 ─ */
+function calcLocalContrastComparison(d1,d2){
+  const b=getBounds(0),BS=16;let n=0,sumA=0,sumB=0,sumAA=0,sumBB=0,sumAB=0,relErr=0;
+  for(let by=b.y0;by<b.y1-BS;by+=BS)for(let bx=b.x0;bx<b.x1-BS;bx+=BS){
+    let s1=0,s2=0,sq1=0,sq2=0,cnt=0;
+    for(let y=by;y<by+BS&&y<b.y1;y++)for(let x=bx;x<bx+BS&&x<b.x1;x++){
+      const p=(y*W+x)*4,v1=d1[p]*.299+d1[p+1]*.587+d1[p+2]*.114,v2=d2[p]*.299+d2[p+1]*.587+d2[p+2]*.114;
+      s1+=v1;s2+=v2;sq1+=v1*v1;sq2+=v2*v2;cnt++;
+    }
+    if(cnt<4)continue;const m1=s1/cnt,m2=s2/cnt;
+    const std1=Math.sqrt(Math.max(0,sq1/cnt-m1*m1)),std2=Math.sqrt(Math.max(0,sq2/cnt-m2*m2));
+    const a=Math.min(60,std1),c=Math.min(60,std2);
+    sumA+=a;sumB+=c;sumAA+=a*a;sumBB+=c*c;sumAB+=a*c;relErr+=Math.abs(a-c)/Math.max(6,a,c);n++;
+  }
+  if(!n)return{score:0};
+  const ma=sumA/n,mb=sumB/n,cov=sumAB/n-ma*mb,va=sumAA/n-ma*ma,vb=sumBB/n-mb*mb;
+  const corr=(va>0&&vb>0)?cov/Math.sqrt(va*vb):0,diff=relErr/n;
+  const raw=Math.max(0,Math.min(1,(corr*0.55+0.45)*(1-Math.min(1,diff)*0.75)));
+  return{score:Math.max(0,Math.min(100,Math.round(raw>=0.90?88+(raw-0.90)*120:raw>=0.70?62+(raw-0.70)*130:raw>=0.45?28+(raw-0.45)*136:raw*62)))};
+}
+
+/* ─ Zone 검사 (std + SSIM + 픽셀차) ─ */
+function calcZoneSSIM(d1,d2,zx,zy,zw,zh){
+  const BS=12,C1=6.5025,C2=58.5225;let ssimSum=0,blockCount=0;
+  for(let by=zy;by<zy+zh-BS;by+=BS)for(let bx=zx;bx<zx+zw-BS;bx+=BS){
+    let sum1=0,sum2=0,sum1sq=0,sum2sq=0,sum12=0,n=0;
+    for(let y=by;y<by+BS&&y<zy+zh;y++)for(let x=bx;x<bx+BS&&x<zx+zw;x++){
+      const p=(y*W+x)*4,v1=d1[p]*.299+d1[p+1]*.587+d1[p+2]*.114,v2=d2[p]*.299+d2[p+1]*.587+d2[p+2]*.114;
+      sum1+=v1;sum2+=v2;sum1sq+=v1*v1;sum2sq+=v2*v2;sum12+=v1*v2;n++;
+    }
+    if(n<4)continue;const mu1=sum1/n,mu2=sum2/n;
+    const sig1sq=sum1sq/n-mu1*mu1,sig2sq=sum2sq/n-mu2*mu2,sig12=sum12/n-mu1*mu2;
+    ssimSum+=Math.max(0,((2*mu1*mu2+C1)*(2*sig12+C2))/((mu1*mu1+mu2*mu2+C1)*(sig1sq+sig2sq+C2)));blockCount++;
+  }
+  const avg=blockCount?ssimSum/blockCount:0;
+  return Math.max(0,Math.min(100,Math.round(avg>=0.95?94+(avg-0.95)*120:avg>=0.85?82+(avg-0.85)*120:avg>=0.75?62+(avg-0.75)*200:avg>=0.60?25+(avg-0.60)*247:avg*41.7)));
+}
+function calcZonePixelDiff(d1,d2,zx,zy,zw,zh){
+  let diffSum=0,total=0;
+  for(let y=zy;y<zy+zh;y+=FAST_STEP)for(let x=zx;x<zx+zw;x+=FAST_STEP){
+    const p=(y*W+x)*4;diffSum+=(Math.abs(d1[p]-d2[p])+Math.abs(d1[p+1]-d2[p+1])+Math.abs(d1[p+2]-d2[p+2]))/3;total++;
+  }
+  return Math.max(0,Math.min(100,Math.round(100-(total?diffSum/total:255)*1.67)));
+}
+function calcZoneStd(data,zx,zy,zw,zh){
+  let sum=0,sum2=0,n=0;
+  for(let y=zy;y<zy+zh;y+=FAST_STEP)for(let x=zx;x<zx+zw;x+=FAST_STEP){
+    const p=(y*W+x)*4,g=data[p]*.299+data[p+1]*.587+data[p+2]*.114;sum+=g;sum2+=g*g;n++;
+  }
+  if(!n)return 0;const mean=sum/n;return Math.sqrt(Math.max(0,sum2/n-mean*mean));
+}
+function zonesUnionROI(list){
+  if(!list||!list.length)return{...roi};
+  let x0=W,y0=H,x1=0,y1=0;
+  list.forEach(z=>{x0=Math.min(x0,z.x);y0=Math.min(y0,z.y);x1=Math.max(x1,z.x+z.w);y1=Math.max(y1,z.y+z.h);});
+  const pad=12;
+  x0=clamp(Math.floor(x0-pad),0,W-ROI_MIN);y0=clamp(Math.floor(y0-pad),0,H-ROI_MIN);
+  x1=clamp(Math.ceil(x1+pad),x0+ROI_MIN,W);y1=clamp(Math.ceil(y1+pad),y0+ROI_MIN,H);
+  return{x:x0,y:y0,w:x1-x0,h:y1-y0};
+}
+function runZoneInspect(mD,iD){
+  const pass=parseInt(document.getElementById('sens-main').value||70);
+  const STD_MIN=parseInt(document.getElementById('std-thresh')?.value||37);
+  const zList=document.getElementById('zone-results');zList.innerHTML='';
+  let allOK=true;let lastStd=0;
+
+  zones.forEach((z,i)=>{
+    const iStd=calcZoneStd(iD,z.x,z.y,z.w,z.h);lastStd=iStd;
+    const stdFail=iStd<STD_MIN;
+    const zSSIM=calcZoneSSIM(mD,iD,z.x,z.y,z.w,z.h);
+    const zPix=calcZonePixelDiff(mD,iD,z.x,z.y,z.w,z.h);
+    const zScore=Math.round(zSSIM*0.50+zPix*0.50);
+    z.lastScore=zScore;
+    const ok=!stdFail&&zScore>=pass;
+    if(!ok)allOK=false;
+    const reason=stdFail?`STD ${iStd.toFixed(0)}<${STD_MIN}`:`${zScore}% S${zSSIM}/P${zPix}`;
+    const chip=document.createElement('span');
+    chip.className='zr-chip '+(ok?'ok':'ng');
+    chip.textContent=`${z.label} ${reason}`;
+    zList.appendChild(chip);
+    log(`  ${z.label} ${ok?'OK':'NG'} | ${reason} | std=${iStd.toFixed(1)}`,ok?'ok':'ng');
+  });
+  document.getElementById('m-std').textContent=lastStd.toFixed(1);
+  return allOK;
+}
+
+/* ─ NG 차이 맵 ─ */
+function drawDiffMap(){
+  if(!masterPP||!inspectPP||!showDiff){idiffCtx.clearRect(0,0,W,H);return;}
+  const b=getBounds(0),sens=parseInt(document.getElementById('sens-main').value||70);
+  const threshold=Math.max(6,Math.round((100-sens)*0.45+8));
+  idiffCtx.clearRect(0,0,W,H);const img=idiffCtx.createImageData(W,H);
+  for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++){
+    const p=(y*W+x)*4,d=(Math.abs(masterPP[p]-inspectPP[p])+Math.abs(masterPP[p+1]-inspectPP[p+1])+Math.abs(masterPP[p+2]-inspectPP[p+2]))/3;
+    if(d>threshold){const ratio=Math.min(1,(d-threshold)/50);img.data[p]=255;img.data[p+1]=Math.round(60*(1-ratio));img.data[p+2]=78;img.data[p+3]=Math.round(100+ratio*100);}
+  }
+  idiffCtx.putImageData(img,0,0);
+}
+function refreshOverlays(){
+  ieCtx.clearRect(0,0,W,H);
+  if(masters.length>0&&showOvl){
+    const m=masters[activeMasterIdx];if(m){masterEdge=getMasterEdge(m,getMasterPreprocess(m));drawEdge(ieCtx,masterEdge);}
+  }
+  drawDiffMap();drawOverlay();
+}
+
+/* ─ 보정 ─ */
+function extractGrayPatch(data,x,y,w,h){
+  const patch=new Float32Array(w*h);
+  for(let dy=0;dy<h;dy++)for(let dx=0;dx<w;dx++){
+    const sx=x+dx,sy=y+dy;if(sx<0||sx>=W||sy<0||sy>=H){patch[dy*w+dx]=128;continue;}
+    const p=(sy*W+sx)*4;patch[dy*w+dx]=0.299*data[p]+0.587*data[p+1]+0.114*data[p+2];
+  }return patch;
+}
+function nccMatch(srcData,tmpl,tw,th,searchRange){
+  const ax=anchor.x,ay=anchor.y;let bestScore=-2,bestDX=0,bestDY=0;
+  let tmplMean=0;for(let i=0;i<tmpl.length;i++)tmplMean+=tmpl[i];tmplMean/=tmpl.length;
+  let tmplStd=0;for(let i=0;i<tmpl.length;i++)tmplStd+=(tmpl[i]-tmplMean)**2;
+  tmplStd=Math.sqrt(tmplStd);if(tmplStd<1)return{dx:0,dy:0,score:0,fail:true};
+  for(let dy=-searchRange;dy<=searchRange;dy++)for(let dx=-searchRange;dx<=searchRange;dx++){
+    const sx=ax+dx,sy=ay+dy;if(sx<0||sy<0||sx+tw>W||sy+th>H)continue;
+    let pMean=0;
+    for(let py=0;py<th;py++)for(let px=0;px<tw;px++){const p=((sy+py)*W+(sx+px))*4;pMean+=0.299*srcData[p]+0.587*srcData[p+1]+0.114*srcData[p+2];}
+    pMean/=(tw*th);let num=0,denP=0;
+    for(let py=0;py<th;py++)for(let px=0;px<tw;px++){
+      const p=((sy+py)*W+(sx+px))*4;const pv=0.299*srcData[p]+0.587*srcData[p+1]+0.114*srcData[p+2]-pMean;
+      const tv=tmpl[py*tw+px]-tmplMean;num+=pv*tv;denP+=pv*pv;
+    }
+    const den=Math.sqrt(denP)*tmplStd,score=den>0?num/den:0;
+    if(score>bestScore){bestScore=score;bestDX=dx;bestDY=dy;}
+  }
+  return{dx:bestDX,dy:bestDY,score:bestScore,fail:bestScore<0.5};
+}
+function shiftImageData(srcData,dx,dy){
+  const out=new Uint8ClampedArray(srcData.length);for(let i=3;i<out.length;i+=4)out[i]=255;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const fx=x+dx,fy=y+dy;if(fx<0||fx>=W||fy<0||fy>=H)continue;
+    const dP=(y*W+x)*4,sP=(fy*W+fx)*4;
+    out[dP]=srcData[sP];out[dP+1]=srcData[sP+1];out[dP+2]=srcData[sP+2];out[dP+3]=srcData[sP+3];
+  }return out;
+}
+function autoAlignByROI(masterData,inspectData,searchPx){
+  if(!searchPx)searchPx=15;const b=getBounds(0),margin=0.25;
+  const tx=Math.round(b.x0+(b.x1-b.x0)*margin),ty=Math.round(b.y0+(b.y1-b.y0)*margin);
+  const tw=Math.round((b.x1-b.x0)*(1-margin*2)),th=Math.round((b.y1-b.y0)*(1-margin*2));
+  if(tw<16||th<16)return{dx:0,dy:0,score:0};
+  const tmpl=new Float32Array(tw*th);let tmplMean=0;
+  for(let dy=0;dy<th;dy++)for(let dx=0;dx<tw;dx++){const p=((ty+dy)*W+(tx+dx))*4;const g=0.299*masterData[p]+0.587*masterData[p+1]+0.114*masterData[p+2];tmpl[dy*tw+dx]=g;tmplMean+=g;}
+  tmplMean/=(tw*th);let tmplStd=0;for(let i=0;i<tmpl.length;i++)tmplStd+=(tmpl[i]-tmplMean)**2;tmplStd=Math.sqrt(tmplStd);if(tmplStd<1)return{dx:0,dy:0,score:0};
+  let bestScore=-2,bestDX=0,bestDY=0;
+  const cs=Math.max(1,Math.min(4,Math.floor(searchPx/5)));
+  for(let sdy=-searchPx;sdy<=searchPx;sdy+=cs)for(let sdx=-searchPx;sdx<=searchPx;sdx+=cs){
+    const sx=tx+sdx,sy=ty+sdy;if(sx<0||sy<0||sx+tw>W||sy+th>H)continue;
+    let pMean=0;for(let py=0;py<th;py++)for(let px=0;px<tw;px++){const p=((sy+py)*W+(sx+px))*4;pMean+=0.299*inspectData[p]+0.587*inspectData[p+1]+0.114*inspectData[p+2];}pMean/=(tw*th);
+    let num=0,denP=0;for(let py=0;py<th;py++)for(let px=0;px<tw;px++){const p=((sy+py)*W+(sx+px))*4;const pv=0.299*inspectData[p]+0.587*inspectData[p+1]+0.114*inspectData[p+2]-pMean;const tv=tmpl[py*tw+px]-tmplMean;num+=pv*tv;denP+=pv*pv;}
+    const den=Math.sqrt(denP)*tmplStd,score=den>0?num/den:0;if(score>bestScore){bestScore=score;bestDX=sdx;bestDY=sdy;}
+  }
+  const fb={dx:bestDX,dy:bestDY,score:bestScore};
+  for(let sdy=bestDX-cs;sdy<=bestDY+cs;sdy++)for(let sdx=bestDX-cs;sdx<=bestDX+cs;sdx++){
+    const sx=tx+sdx,sy=ty+sdy;if(sx<0||sy<0||sx+tw>W||sy+th>H)continue;
+    let pMean=0;for(let py=0;py<th;py++)for(let px=0;px<tw;px++){const p=((sy+py)*W+(sx+px))*4;pMean+=0.299*inspectData[p]+0.587*inspectData[p+1]+0.114*inspectData[p+2];}pMean/=(tw*th);
+    let num=0,denP=0;for(let py=0;py<th;py++)for(let px=0;px<tw;px++){const p=((sy+py)*W+(sx+px))*4;const pv=0.299*inspectData[p]+0.587*inspectData[p+1]+0.114*inspectData[p+2]-pMean;const tv=tmpl[py*tw+px]-tmplMean;num+=pv*tv;denP+=pv*pv;}
+    const den=Math.sqrt(denP)*tmplStd,score=den>0?num/den:0;if(score>fb.score){fb.dx=sdx;fb.dy=sdy;fb.score=score;}
+  }
+  return{dx:fb.dx,dy:fb.dy,score:fb.score};
+}
+
+/* ─ 통합 검사 ─ */
+function runInspect(){
+  if(editMode!=='run')return;
+  const cycleStart=performance.now();
+  updateStatus('RUNNING...','live-pill');
+
+  if(!masters.length||!inspectID){
+    if(!masters.length)log('마스터 없음','ng');
+    if(!inspectID)log('검사 이미지 없음','ng');
+    updateStatus('대기','');return;
+  }
+  if(activeMasterIdx<masters.length)saveCurrentToMaster(activeMasterIdx);
+
+  /* 라이브 캡처 */
+  if(liveMode){
+    const vid=document.getElementById('vid');
+    if(vid.srcObject&&vid.videoWidth){
+      iCtx.clearRect(0,0,W,H);const sc=Math.min(W/vid.videoWidth,H/vid.videoHeight);
+      iCtx.drawImage(vid,(W-vid.videoWidth*sc)/2,(H-vid.videoHeight*sc)/2,vid.videoWidth*sc,vid.videoHeight*sc);
+      inspectID=iCtx.getImageData(0,0,W,H);
+    }
+  }
+
+  const pass=parseInt(document.getElementById('sens-main').value||70);
+  let bestTotal=-1,bestIdx=0,bestResult=null;
+
+  for(let mi=0;mi<masters.length;mi++){
+    const m=masters[mi];
+    roi={...m.roi};normROI();anchor={...m.anchor};zones=m.zones.map(z=>({...z}));
+    const visualROI={...roi};
+    const calcROI=(zones.length>0)?zonesUnionROI(zones):visualROI;
+    roi={...calcROI};normROI();
+
+    let iRaw=new Uint8ClampedArray(inspectID.data);
+    let alignDX=0,alignDY=0,alignFail=false;
+
+    if(alignEnabled&&anchor.set){
+      const tmpl=extractGrayPatch(m.imageData.data,anchor.x,anchor.y,anchor.w,anchor.h);
+      const result=nccMatch(iRaw,tmpl,anchor.w,anchor.h,30);
+      alignDX=result.dx;alignDY=result.dy;alignFail=result.fail;
+      if(!alignFail&&(alignDX!==0||alignDY!==0))iRaw=shiftImageData(iRaw,alignDX,alignDY);
+    }
+    const autoAlign=autoAlignByROI(m.imageData.data,iRaw,15);
+    if(autoAlign.score>0.7&&(autoAlign.dx!==0||autoAlign.dy!==0)){
+      iRaw=shiftImageData(iRaw,autoAlign.dx,autoAlign.dy);alignDX+=autoAlign.dx;alignDY+=autoAlign.dy;
+    }
+
+    const mD=getMasterPreprocess(m);
+    const iD=brightnessMatch(preprocess(iRaw),mD);
+    const ssim=calcSSIM(mD,iD);
+    const local=calcLocalContrastComparison(mD,iD);
+    const total=Math.max(0,Math.min(100,Math.round(ssim.score*SCORE_W.ssim+local.score*SCORE_W.local)));
+
+    if(total>bestTotal){
+      bestTotal=total;bestIdx=mi;
+      bestResult={mD,iD,ssim,local,total,alignDX,alignDY,alignFail,mROI:{...visualROI},mAnchor:{...anchor},mZones:zones.map(z=>({...z}))};
+    }
+  }
+
+  const r=bestResult;bestMasterIdx=bestIdx;
+  masterPP=r.mD;inspectPP=r.iD;
+  roi={...r.mROI};anchor={...r.mAnchor};zones=r.mZones;
+  activeMasterIdx=bestIdx;renderMasterThumbs();
+
+  let isOK=r.total>=pass;
+  let zoneAllOK=true;
+  if(zones.length>0){
+    if(masters.length>1)log(`── Zone 판정 (M${bestIdx+1}) ──`);
+    zoneAllOK=runZoneInspect(r.mD,r.iD);
+    isOK=zoneAllOK;
+  } else {
+    document.getElementById('zone-results').innerHTML='';
+  }
+
+  lastCycleMs=Math.max(1,Math.round(performance.now()-cycleStart));
+
+  /* 판정 결과 표시 */
+  const ov=document.getElementById('judge-overlay');
+  ov.textContent=isOK?'✓  OK':'✗  NG';
+  ov.className='judge-overlay show '+(isOK?'ok':'ng');
+  setTimeout(()=>ov.classList.remove('show'),2000);
+
+  updateStatus(isOK?'JUDGE OK':'JUDGE NG',isOK?'ok-pill':'ng-pill');
+
+  if(isOK){okCount++;document.getElementById('cnt-ok').textContent='OK '+okCount;}
+  else{ngCount++;document.getElementById('cnt-ng').textContent='NG '+ngCount;}
+
+  /* 메트릭 */
+  document.getElementById('m-ssim').textContent=r.ssim.score+'%';
+  document.getElementById('m-pix').textContent=r.local.score+'%';
+  document.getElementById('m-align').textContent=anchor.set&&!r.alignFail?`${r.alignDX},${r.alignDY}`:'—';
+  document.getElementById('m-cycle').textContent=lastCycleMs+'ms';
+
+  log(`${isOK?'OK':'NG'} ${r.total}%/${pass}% | SSIM${r.ssim.score} 대비${r.local.score} | ${lastCycleMs}ms${masters.length>1?` M${bestIdx+1}`:''}${anchor.set?` Δ${r.alignDX},${r.alignDY}`:''}`,isOK?'ok':'ng');
+
+  drawDiffMap();
+  if(showOvl){const mE=getMasterEdge(masters[bestIdx],r.mD);drawEdge(ieCtx,mE);}
+  else ieCtx.clearRect(0,0,W,H);
+  drawOverlay();
+}
+
+/* ─ 이미지 처리 ─ */
+function drawImgToCtx(ctx,img){
+  ctx.clearRect(0,0,W,H);const sc=Math.min(W/img.width,H/img.height);
+  ctx.drawImage(img,(W-img.width*sc)/2,(H-img.height*sc)/2,img.width*sc,img.height*sc);
+  return ctx.getImageData(0,0,W,H);
+}
+function loadFileAsImage(file,cb){
+  if(!file||!file.type.startsWith('image/')){log('이미지만 지원');return;}
+  const url=URL.createObjectURL(file);const img=new Image();
+  img.onload=()=>{cb(img);URL.revokeObjectURL(url);};img.onerror=()=>{log('로드 실패');URL.revokeObjectURL(url);};img.src=url;
+}
+function makeThumbURL(imageData){
+  const tc=document.createElement('canvas');tc.width=W;tc.height=H;tc.getContext('2d').putImageData(imageData,0,0);return tc.toDataURL('image/jpeg',0.6);
+}
+
+/* ─ 마스터 관리 ─ */
+function defaultROI(){return{x:80,y:60,w:480,h:360};}
+function defaultAnchor(){return{x:200,y:150,w:80,h:80,set:false};}
+function saveCurrentToMaster(idx){
+  if(idx<0||idx>=masters.length)return;const m=masters[idx];
+  m.roi={...roi};m.anchor={...anchor};m.zones=zones.map(z=>({...z}));
+  m.ppData=null;m.ppKey=null;m.edgeData=null;m.edgeKey=null;
+}
+function loadMasterSettings(idx){
+  if(idx<0||idx>=masters.length)return;const m=masters[idx];
+  roi={...m.roi};anchor={...m.anchor};zones=m.zones.map(z=>({...z}));normROI();
+}
+function precomputeMaster(m){
+  const saved={...roi};roi={...m.roi};normROI();
+  m.ppData=preprocess(m.imageData.data);m.ppKey=roiCacheKey();m.edgeData=null;m.edgeKey=null;
+  roi=saved;normROI();
+}
+function addMaster(imageData,name){
+  if(masters.some(m=>m.name===name)){log(`"${name}" 이미 등록됨`);return;}
+  if(masters.length>0)saveCurrentToMaster(activeMasterIdx);
+  const m={imageData,name,thumbURL:makeThumbURL(imageData),roi:defaultROI(),anchor:defaultAnchor(),zones:[],ppData:null,ppKey:null,edgeData:null,edgeKey:null};
+  precomputeMaster(m);masters.push(m);activeMasterIdx=masters.length-1;
+  loadMasterSettings(activeMasterIdx);renderMasterThumbs();
+  document.getElementById('vf-hint').style.display='none';
+  log(`마스터 추가: ${name} (${masters.length}개)`);
+  updateInspectBtn();updateStatus('MASTER '+masters.length,'');
+  refreshOverlays();
+}
+function removeMaster(idx){
+  if(idx<0||idx>=masters.length)return;const name=masters[idx].name;masters.splice(idx,1);
+  if(!masters.length){activeMasterIdx=0;roi=defaultROI();anchor=defaultAnchor();zones=[];}
+  else{activeMasterIdx=Math.min(activeMasterIdx,masters.length-1);loadMasterSettings(activeMasterIdx);}
+  renderMasterThumbs();refreshOverlays();log(`마스터 삭제: ${name}`);updateInspectBtn();
+}
+function renderMasterThumbs(){
+  const strip=document.getElementById('master-strip');strip.innerHTML='';
+  masters.forEach((m,i)=>{
+    const div=document.createElement('div');
+    div.className='m-thumb'+(i===activeMasterIdx?' active':'')+(i===bestMasterIdx?' best':'');
+    div.onclick=()=>{if(masters.length>0&&activeMasterIdx<masters.length)saveCurrentToMaster(activeMasterIdx);activeMasterIdx=i;loadMasterSettings(i);renderMasterThumbs();refreshOverlays();};
+    const img=document.createElement('img');img.src=m.thumbURL;div.appendChild(img);
+    const del=document.createElement('button');del.className='m-del';del.textContent='✕';
+    del.onclick=e=>{e.stopPropagation();removeMaster(i);};div.appendChild(del);
+    strip.appendChild(div);
+  });
+  if(masters.length<5){
+    const add=document.createElement('div');add.className='m-add-btn';add.textContent='+';
+    add.onclick=openMasterPanel;strip.appendChild(add);
+  }
+}
+function captureMasterFromCam(){
+  const vid=document.getElementById('vid');
+  if(!vid.srcObject||!vid.videoWidth){log('카메라 미실행','ng');return;}
+  offCtx.clearRect(0,0,W,H);const sc=Math.min(W/vid.videoWidth,H/vid.videoHeight);
+  offCtx.drawImage(vid,(W-vid.videoWidth*sc)/2,(H-vid.videoHeight*sc)/2,vid.videoWidth*sc,vid.videoHeight*sc);
+  addMaster(offCtx.getImageData(0,0,W,H),'캡처_'+tsName());
+}
+function promoteToMaster(){
+  if(!inspectID){log('검사 이미지 없음','ng');return;}
+  addMaster(new ImageData(new Uint8ClampedArray(inspectID.data),W,H),'양품_'+tsName());
+}
+function onFileIn(e){
+  Array.from(e.target.files).forEach(f=>{
+    loadFileAsImage(f,img=>{drawImgToCtx(offCtx,img);addMaster(offCtx.getImageData(0,0,W,H),f.name);});
+  });
+  e.target.value='';
+}
+
+/* 검사 이미지 파일 (헤더 파일 버튼 또는 드롭) */
+function setInspect(imgData){
+  inspectID=imgData;
+  document.getElementById('vf-hint').style.display='none';
+  if(masters.length)updateInspectBtn();
+  refreshOverlays();
+  if(masters.length)runInspect();
+}
+
+/* ─ 토글 ─ */
+function toggleOverlay(){
+  showOvl=!showOvl;
+  document.getElementById('btn-ovl').classList.toggle('active',showOvl);
+  refreshOverlays();
+}
+function toggleDiff(){
+  showDiff=!showDiff;
+  document.getElementById('btn-diff').classList.toggle('active',showDiff);
+  drawDiffMap();
+}
+function toggleMetrics(){/* not used in landscape */}
+function toggleAlign(){
+  alignEnabled=!alignEnabled;
+  document.getElementById('align-sw').classList.toggle('on',alignEnabled);
+  log('앵커 보정 '+(alignEnabled?'ON':'OFF'));
+}
+
+/* ─ 슬라이더 ─ */
+function onSens(){document.getElementById('thresh-v').textContent=document.getElementById('sens-main').value+'%';}
+function onEdge(){
+  const v=document.getElementById('esens').value;
+  document.getElementById('esens-v').textContent=v+'%';
+  masters.forEach(m=>{m.edgeData=null;m.edgeKey=null;});refreshOverlays();
+}
+function onStdThresh(){document.getElementById('std-thresh-v').textContent=document.getElementById('std-thresh').value;}
+
+/* ─ 초기화 ─ */
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js');
+
+renderMasterThumbs();
+setMode('run');
+document.getElementById('metrics-bar').classList.add('show');
+log('SmartVision v7 가로모드 준비 완료');
+log('  마스터 등록 → 카메라/파일 → 검사 실행');
+log('  ROI탭:영역설정 · 앵커탭:앵커설정 · ZONE탭:검사포인트');
+log('  STD<37=볼트없음NG · 더블탭:Zone삭제');
+
+</script>
+</body>
+</html>
